@@ -292,6 +292,8 @@ const DashboardPage = () => {
           </div>
         </div>
       )}
+      
+      <Footer />
     </div>
   );
 };
