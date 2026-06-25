@@ -35,9 +35,9 @@ const DroppableColumn = ({ column, tasks, onTaskClick, activeId }) => {
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col rounded-2xl min-h-[200px] transition-colors duration-150 ${
-        isOver ? 'bg-brand-50/80 dark:bg-brand-950/30 ring-2 ring-brand-300 dark:ring-brand-700' : 'bg-slate-100/70 dark:bg-slate-900/50'
-      } p-3`}
+      className={`flex flex-col rounded-3xl min-h-[200px] transition-all duration-300 border backdrop-blur-xl ${
+        isOver ? 'bg-brand-50/80 dark:bg-brand-950/30 ring-2 ring-brand-400 dark:ring-brand-600 border-brand-200 dark:border-brand-800' : 'bg-white/40 dark:bg-slate-900/40 border-white/60 dark:border-slate-800/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)]'
+      } p-4`}
     >
       <SortableContext items={tasks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2.5 min-h-[60px]">
@@ -171,9 +171,9 @@ const BoardPage = () => {
 
   if (!isLoading && !boardData) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
         <Navbar />
-        <div className="flex flex-col items-center justify-center py-20">
+        <div className="flex-grow flex flex-col items-center justify-center py-20">
           <p className="text-xl text-slate-500 mb-4">Board not found</p>
           <button onClick={() => navigate('/')} className="btn-primary">Back to Dashboard</button>
         </div>
@@ -182,10 +182,10 @@ const BoardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
+      <main className="flex-grow w-full mx-auto max-w-7xl px-4 sm:px-6 py-6">
         {/* Board header */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <div className="flex items-center gap-3">

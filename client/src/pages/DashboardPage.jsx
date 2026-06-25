@@ -180,10 +180,10 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+      <main className="flex-grow w-full mx-auto max-w-7xl px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
