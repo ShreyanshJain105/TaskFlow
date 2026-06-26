@@ -1,161 +1,183 @@
-<div align="center">
-  <img src="https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/layers.svg" alt="TaskFlow Logo" width="80" height="80">
-  <h1 align="center">TaskFlow</h1>
-  <p align="center">
-    <strong>An Enterprise-Grade, AI-Powered Task & Project Management Platform</strong>
-  </p>
-  <p align="center">
-    <a href="#tech-stack">Tech Stack</a> • 
-    <a href="#features">Features</a> • 
-    <a href="#ai-integration">AI Architecture</a> • 
-    <a href="#getting-started">Getting Started</a> • 
-    <a href="#api-reference">API Documentation</a>
-  </p>
-</div>
+# TaskFlow
+
+A Kanban-style project management app built with the MERN stack. Supports drag-and-drop task management, AI-powered effort estimation via Groq, and a real-time analytics dashboard.
+
+**Live:** https://task-flow-live.vercel.app  
+**API:** https://taskflow-api-da5l.onrender.com  
+**Test account:** `test@example.com` / `password123`
 
 ---
 
-## 📖 Overview
+## Features
 
-**TaskFlow** is a modern, full-stack Kanban-style project management application built with the MERN stack. Designed with scalability and user experience in mind, it provides a seamless interface for managing complex workflows, bolstered by a lightweight Artificial Intelligence integration for automated task effort and deadline estimation.
-
-> 📸 *Add your screenshots here before submitting!*
->
-> **Live Frontend:** https://task-flow-live.vercel.app
-> **Live Backend:** https://taskflow-api-da5l.onrender.com 
-> **Test Credentials:** `test@example.com` / `password123`
+- **Kanban boards** — drag tasks between To Do, In Progress, and Done columns with optimistic UI updates
+- **AI estimation** — uses Groq (`llama-3.1-8b-instant`) to suggest effort size and due dates from a task title and description; falls back gracefully if the API is unavailable
+- **Analytics dashboard** — bar chart showing task distribution across boards
+- **Dark mode** — persisted via Zustand + localStorage
+- **JWT auth** — bcrypt password hashing, ownership-scoped routes throughout
 
 ---
 
-## ✨ Enterprise Features
+## Tech Stack
 
-- **Robust Authentication:** Secure JWT-based session management with Bcrypt password hashing (Cost Factor 12) and strict ownership-based route protection.
-- **AI-Powered Estimations:** Integrates with **Groq (Llama-3.1-8b-instant)** to instantly generate intelligent effort estimates and suggested due dates based on task descriptions.
-- **Dynamic Kanban Board:** Fluid drag-and-drop mechanics using `@dnd-kit/core` with optimistic UI updates and real-time state synchronization.
-- **Advanced Analytics:** Interactive Dashboard utilizing Recharts to visualize task distributions and project health metrics.
-- **Production-Ready UI:** Responsive, accessible, and meticulously styled using Tailwind CSS, featuring persistent Dark Mode and polished skeleton loading states.
-- **Resilient Backend Architecture:** Centralized error handling, exhaustive Zod schema validation, and graceful fallback mechanisms ensuring 100% uptime even if third-party APIs fail.
-
----
-
-## 🛠️ Tech Stack
-
-| Domain | Technologies |
-| :--- | :--- |
-| **Frontend** | React 18, Vite, React Router v6 |
-| **State Management** | TanStack Query v5 (Server State), Zustand (Client State) |
-| **Styling & UI** | Tailwind CSS v3, Recharts, Lucide Icons |
-| **Backend Framework** | Node.js, Express.js |
-| **Database** | MongoDB Atlas, Mongoose ODM |
-| **Security & Auth** | JSON Web Tokens (JWT), Bcrypt.js, CORS |
-| **Validation** | Zod (Strict payload validation middleware) |
-| **AI Integration** | Groq SDK (`llama-3.1-8b-instant`) |
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, React Router v6 |
+| Server state | TanStack Query v5 |
+| Client state | Zustand |
+| Styling | Tailwind CSS v3 |
+| Charts | Recharts |
+| Drag & drop | @dnd-kit/core + @dnd-kit/sortable |
+| Backend | Node.js, Express |
+| Database | MongoDB Atlas + Mongoose |
+| Validation | Zod |
+| Auth | JWT + bcryptjs |
+| AI | Groq SDK |
 
 ---
 
-## 🧠 AI Integration Strategy
+## Project Structure
 
-**Provider Choice:** [Groq](https://groq.com/) API using the `llama-3.1-8b-instant` model.
-
-**Reasoning:** Groq provides unparalleled inference speeds (LPU), ensuring the AI estimation feels instantaneous to the user. The `llama-3.1-8b-instant` model is highly capable of structured JSON output and perfectly suited for lightweight semantic analysis without exhausting free-tier constraints.
-
-**Implementation Details:**
-- **Security:** The API key is securely isolated on the Node.js server. The client never interacts with the LLM directly.
-- **Resilience:** Wrapped in an 8-second `AbortController` timeout.
-- **Graceful Degradation:** If the API times out, the quota is exceeded, or JSON parsing fails, the backend seamlessly triggers a deterministic fallback heuristic, ensuring the end-user experiences zero disruption.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js (v18+ recommended)
-- MongoDB Atlas cluster (or local instance)
-- Groq API Key
-
-### 1. Clone & Install
-```bash
-git clone <repository-url>
-cd TaskFlow
-
-# Install Backend Dependencies
-cd server
-npm install
-
-# Install Frontend Dependencies
-cd ../client
-npm install
+```
+taskflow/
+├── client/                 # Vite + React frontend
+│   ├── src/
+│   │   ├── api/            # Axios instance with JWT interceptors
+│   │   ├── components/     # Shared UI components
+│   │   ├── context/        # AuthContext
+│   │   ├── pages/          # Route-level page components
+│   │   └── store/          # Zustand stores (theme)
+│   └── .env.example
+└── server/                 # Express backend
+    ├── src/
+    │   ├── config/         # MongoDB connection
+    │   ├── controllers/    # Request handlers
+    │   ├── middleware/      # protect, errorHandler, validate, notFound
+    │   ├── models/         # Mongoose schemas
+    │   ├── routes/         # Express routers
+    │   ├── schemas/        # Zod validation schemas
+    │   └── utils/          # Groq AI helper
+    └── .env.example
 ```
 
-### 2. Environment Configuration
-Create a `.env` file in the `/server` directory based on the provided `.env.example`:
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB Atlas cluster (or local instance)
+- Groq API key — free at [console.groq.com](https://console.groq.com)
+
+### 1. Install dependencies
+
+```bash
+# Backend
+cd server && npm install
+
+# Frontend
+cd ../client && npm install
+```
+
+### 2. Configure environment variables
+
+**Server** — copy `server/.env.example` to `server/.env`:
 
 ```env
 PORT=5000
-MONGO_URI=mongodb+srv://<your-cluster-uri>
-JWT_SECRET=your_super_secret_key_32_chars
-GROQ_API_KEY=gsk_your_groq_api_key_here
+MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/taskflow
+JWT_SECRET=<long-random-string-min-32-chars>
+GROQ_API_KEY=gsk_...
 CLIENT_ORIGIN=http://localhost:5173
 ```
 
-### 3. Run the Application
-Start both development servers concurrently.
+**Client** — copy `client/.env.example` to `client/.env`:
 
-**Backend:**
-```bash
-cd server
-npm run dev
-# Running on http://localhost:5000
+```env
+VITE_API_URL=http://localhost:5000/api
 ```
 
-**Frontend:**
+### 3. Run
+
 ```bash
-cd client
-npm run dev
-# Running on http://localhost:5173
+# Terminal 1 — backend (nodemon, auto-restarts on changes)
+cd server && npm run dev
+
+# Terminal 2 — frontend (Vite HMR)
+cd client && npm run dev
 ```
 
----
-
-## 📡 API Reference
-
-All protected endpoints require an `Authorization: Bearer <token>` header.
-
-### Authentication (`/api/auth`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `POST` | `/register` | Register a new user | ❌ |
-| `POST` | `/login` | Authenticate and retrieve JWT | ❌ |
-| `GET` | `/me` | Retrieve current user profile | ✅ |
-
-### Boards (`/api/boards`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/` | Retrieve all boards owned by user | ✅ |
-| `POST` | `/` | Create a new board | ✅ |
-| `PATCH` | `/:id` | Update board details | ✅ |
-| `DELETE` | `/:id` | Delete board (Cascades to tasks) | ✅ |
-
-### Tasks (`/api/tasks`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/boards/:boardId/tasks` | Retrieve all tasks for a specific board | ✅ |
-| `POST` | `/boards/:boardId/tasks` | Create a new task in a board | ✅ |
-| `PATCH` | `/:id` | Update task (Status, Priority, Meta) | ✅ |
-| `DELETE` | `/:id` | Delete a task | ✅ |
-| `POST` | `/ai-estimate` | Generate AI Effort/Date estimate | ✅ |
+Open `http://localhost:5173`.
 
 ---
 
-## 🔮 Known Issues & Future Roadmap
-Given more time, the following enhancements would be prioritized:
-1. **Real-time Collaboration:** Implement `Socket.io` to allow multiple users to edit the same board concurrently without refreshing.
-2. **Advanced Analytics:** Build a dedicated `/api/analytics` aggregate endpoint for deeper, board-spanning insights into task completion velocity.
-3. **Pagination & Infinite Scroll:** Implement cursor-based pagination on the task endpoints to support boards with 1,000+ tasks efficiently.
-4. **Integration Testing:** Expand the test suite using Supertest and Jest to cover all edge cases in the Board and Task controllers.
+## API Reference
+
+All routes marked **🔒** require `Authorization: Bearer <token>`.
+
+### Auth — `/api/auth`
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| POST | `/register` | Create account | — |
+| POST | `/login` | Sign in, returns JWT | — |
+| GET | `/me` | Current user | 🔒 |
+
+### Boards — `/api/boards`
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| GET | `/` | List boards (includes task count) | 🔒 |
+| POST | `/` | Create board | 🔒 |
+| PATCH | `/:id` | Update title/description | 🔒 |
+| DELETE | `/:id` | Delete board + cascade delete its tasks | 🔒 |
+
+### Tasks — `/api/boards/:boardId/tasks` and `/api/tasks`
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| GET | `/api/boards/:boardId/tasks` | List tasks for a board | 🔒 |
+| POST | `/api/boards/:boardId/tasks` | Create task | 🔒 |
+| PATCH | `/api/tasks/:id` | Update task fields | 🔒 |
+| DELETE | `/api/tasks/:id` | Delete task | 🔒 |
+| POST | `/api/tasks/ai-estimate` | Get AI effort/due date estimate | 🔒 |
 
 ---
 
-<div align="center">
-  <p>Designed & Engineered by <strong>Shreyansh Jain</strong></p>
-</div>
+## AI Estimation
+
+The `/api/tasks/ai-estimate` endpoint takes a task title and description and returns:
+
+```json
+{
+  "estimatedEffort": "half day",
+  "suggestedDueDate": "2025-07-04",
+  "reasoning": "Moderate complexity UI change with clear scope.",
+  "fallback": false
+}
+```
+
+If the Groq API is unavailable or times out (8s limit), `fallback: true` is returned with a heuristic estimate based on description length — the user always gets a response.
+
+---
+
+## Design Decisions
+
+**Why Groq over OpenAI?** Groq's LPU inference is significantly faster for small models, which matters for a feature triggered mid-form-fill. The latency difference is noticeable.
+
+**Why TanStack Query + Zustand instead of Redux?** Server state (boards, tasks) and client state (theme, modal visibility) have completely different lifecycles. Using a server-state library for server data and a minimal store for UI state is simpler and more maintainable than a single Redux store trying to do both.
+
+**Optimistic updates on drag-and-drop** — `queryClient.setQueryData` updates the UI immediately on drag, with a `PATCH` fired in the background. If the request fails, the cache is invalidated and the board snaps back to server state. This avoids the janky lag of waiting for a round-trip on every drag.
+
+---
+
+## Known Limitations / Future Work
+
+- **No real-time sync** — two users on the same board won't see each other's changes without refreshing. Socket.io would fix this.
+- **No pagination** — boards with hundreds of tasks will load everything at once. Cursor-based pagination on task endpoints would be the right fix.
+- **Single timezone** — due dates are stored as UTC and displayed in the browser's local timezone; users in negative UTC offsets may see off-by-one-day display issues on exact-midnight dates.
+
+---
+
+*Built by [Shreyansh Jain](https://github.com/ShreyanshJain105)*
