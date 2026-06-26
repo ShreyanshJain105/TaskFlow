@@ -1,53 +1,51 @@
-/**
- * Groq API utility with:
- * - AbortController timeout (8s)
- * - Defensive JSON parsing (strips markdown fences)
- * - Graceful fallback on any failure
- */
-
 const Groq = require('groq-sdk');
 
-const FALLBACK_EFFORT_MAP = [
-  [0, 'XS (< 1h)'],
-  [50, 'S (1–2h)'],
-  [150, 'M (half day)'],
-  [400, 'L (1 day)'],
-  [Infinity, 'XL (2+ days)'],
+let groqClient = null;
+
+// Lazily initialise the client — called only after we've confirmed the API key exists
+const getGroqClient = () => {
+  if (!groqClient) {
+    groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return groqClient;
+};
+
+const EFFORT_THRESHOLDS = [
+  { maxLen: 0,   label: 'XS (< 1h)' },
+  { maxLen: 50,  label: 'S (1–2h)' },
+  { maxLen: 150, label: 'M (half day)' },
+  { maxLen: 400, label: 'L (1 day)' },
 ];
 
-const getFallbackEffort = (description = '') => {
+const estimateEffortFromLength = (description = '') => {
   const len = description.length;
-  for (const [threshold, label] of FALLBACK_EFFORT_MAP) {
-    if (len <= threshold) return label;
-  }
-  return 'M (half day)';
+  const match = EFFORT_THRESHOLDS.find((t) => len <= t.maxLen);
+  return match ? match.label : 'XL (2+ days)';
 };
 
 const getFallbackDueDate = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 3);
-  return d.toISOString().split('T')[0];
+  const date = new Date();
+  date.setDate(date.getDate() + 3);
+  return date.toISOString().split('T')[0];
 };
 
-const FALLBACK_RESPONSE = (description) => ({
-  estimatedEffort: getFallbackEffort(description),
+const buildFallbackResponse = (description) => ({
+  estimatedEffort: estimateEffortFromLength(description),
   suggestedDueDate: getFallbackDueDate(),
   reasoning: 'AI suggestion unavailable — using default estimate',
   fallback: true,
 });
 
-const stripMarkdownFences = (text) => {
-  return text
+const stripMarkdownFences = (text) =>
+  text
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
-};
 
 const getAiEstimate = async (title, description = '') => {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.warn('[Groq] GROQ_API_KEY not set — returning fallback');
-    return FALLBACK_RESPONSE(description);
+  if (!process.env.GROQ_API_KEY) {
+    console.warn('[groq] GROQ_API_KEY not set — returning fallback estimate');
+    return buildFallbackResponse(description);
   }
 
   const prompt = `You are a software project estimation assistant.
@@ -62,27 +60,25 @@ Task title: ${title}
 Task description: ${description || '(no description provided)'}`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  let timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const groq = new Groq({ apiKey });
+    const completion = await getGroqClient().chat.completions.create(
+      {
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama-3.1-8b-instant',
+        response_format: { type: 'json_object' },
+      },
+      { signal: controller.signal }
+    );
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.1-8b-instant', // fast and currently supported
-      response_format: { type: 'json_object' }
-    }, { signal: controller.signal });
-    
-    clearTimeout(timeout);
+    clearTimeout(timeoutId);
 
-    const rawText = chatCompletion.choices[0]?.message?.content || '{}';
-    const cleaned = stripMarkdownFences(rawText);
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(stripMarkdownFences(raw));
 
-    const parsed = JSON.parse(cleaned);
-
-    // Validate required fields exist
     if (!parsed.estimatedEffort || !parsed.suggestedDueDate || !parsed.reasoning) {
-      throw new Error('Incomplete AI response fields');
+      throw new Error('Incomplete fields in AI response');
     }
 
     return {
@@ -92,13 +88,10 @@ Task description: ${description || '(no description provided)'}`;
       fallback: false,
     };
   } catch (err) {
-    clearTimeout(timeout);
-    if (err.name === 'AbortError') {
-      console.warn('[Groq] Request timed out — returning fallback');
-    } else {
-      console.warn('[Groq] Error:', err.message, '— returning fallback');
-    }
-    return FALLBACK_RESPONSE(description);
+    clearTimeout(timeoutId);
+    const reason = err.name === 'AbortError' ? 'request timed out' : err.message;
+    console.warn(`[groq] ${reason} — returning fallback estimate`);
+    return buildFallbackResponse(description);
   }
 };
 
