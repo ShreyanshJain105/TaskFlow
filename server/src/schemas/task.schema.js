@@ -8,7 +8,9 @@ const createTaskSchema = z.object({
   dueDate: z.string().datetime({ offset: true }).optional().nullable(),
   estimatedEffort: z.string().max(50).optional().default(''),
   aiReasoning: z.string().max(500).optional().default(''),
-  order: z.number().optional().default(0),
+  // order is intentionally not defaulted — the controller calculates the correct
+  // position (end of column) when this is omitted
+  order: z.number().optional(),
 });
 
 const updateTaskSchema = z.object({
