@@ -7,9 +7,14 @@ const PORT = process.env.PORT || 5000;
 const start = async () => {
   await connectDB();
   app.listen(PORT, () => {
-    console.log(`TaskFlow server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
   });
 };
+
+// Catch unhandled promise rejections so the process doesn't silently die
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+  process.exit(1);
+});
 
 start();

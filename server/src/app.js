@@ -8,7 +8,6 @@ const notFound = require('./middleware/notFound');
 
 const app = express();
 
-// CORS
 app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
@@ -16,23 +15,18 @@ app.use(
   })
 );
 
-// Body parsing
 app.use(express.json());
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Lightweight health check used by Render and UptimeRobot to keep the instance warm
+app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
 });
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/boards', boardRoutes);
 app.use('/api/tasks', taskRoutes);
 
-// 404 for unmatched API routes
 app.use('/api', notFound);
-
-// Centralized error handler (must be last)
 app.use(errorHandler);
 
 module.exports = app;

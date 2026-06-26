@@ -2,7 +2,6 @@ const Board = require('../models/Board');
 const Task = require('../models/Task');
 const { getAiEstimate } = require('../utils/groq');
 
-// GET /api/boards/:boardId/tasks
 const getTasksByBoard = async (req, res, next) => {
   try {
     const board = await Board.findOne({ _id: req.params.boardId, owner: req.user._id });
@@ -17,7 +16,6 @@ const getTasksByBoard = async (req, res, next) => {
   }
 };
 
-// POST /api/boards/:boardId/tasks
 const createTask = async (req, res, next) => {
   try {
     const board = await Board.findOne({ _id: req.params.boardId, owner: req.user._id });
@@ -28,16 +26,21 @@ const createTask = async (req, res, next) => {
     const { title, description, status, priority, dueDate, estimatedEffort, aiReasoning, order } =
       req.validatedBody;
 
-    // Determine order: max existing order + 1 within status column
-    const maxOrderTask = await Task.findOne({ board: board._id, status: status || 'todo' })
-      .sort({ order: -1 })
-      .select('order');
-    const taskOrder = order !== undefined ? order : (maxOrderTask ? maxOrderTask.order + 1 : 0);
+    const targetStatus = status || 'todo';
+
+    // Place new tasks at the end of their column unless an explicit order was provided
+    let taskOrder = order;
+    if (taskOrder === undefined) {
+      const lastTask = await Task.findOne({ board: board._id, status: targetStatus })
+        .sort({ order: -1 })
+        .select('order');
+      taskOrder = lastTask ? lastTask.order + 1 : 0;
+    }
 
     const task = await Task.create({
       title,
       description,
-      status,
+      status: targetStatus,
       priority,
       dueDate: dueDate || null,
       estimatedEffort,
@@ -53,7 +56,6 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// PATCH /api/tasks/:id
 const updateTask = async (req, res, next) => {
   try {
     const task = await Task.findOne({ _id: req.params.id, owner: req.user._id });
@@ -61,9 +63,8 @@ const updateTask = async (req, res, next) => {
       return res.status(404).json({ success: false, error: { message: 'Task not found' } });
     }
 
-    const fields = req.validatedBody;
-    Object.assign(task, fields);
-    if (fields.dueDate === null) task.dueDate = null;
+    // Object.assign handles null values correctly (e.g. clearing dueDate)
+    Object.assign(task, req.validatedBody);
     await task.save();
 
     res.json({ success: true, data: task });
@@ -72,7 +73,6 @@ const updateTask = async (req, res, next) => {
   }
 };
 
-// DELETE /api/tasks/:id
 const deleteTask = async (req, res, next) => {
   try {
     const task = await Task.findOne({ _id: req.params.id, owner: req.user._id });
@@ -87,7 +87,6 @@ const deleteTask = async (req, res, next) => {
   }
 };
 
-// POST /api/tasks/ai-estimate
 const aiEstimate = async (req, res, next) => {
   try {
     const { title, description } = req.validatedBody;
