@@ -52,4 +52,10 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Covers getTasksByBoard (board + sort by order) and createTask (board + status + order)
+taskSchema.index({ board: 1, status: 1, order: 1 });
+
+// Covers updateTask and deleteTask which filter by owner for authorization
+taskSchema.index({ owner: 1 });
+
 module.exports = mongoose.model('Task', taskSchema);

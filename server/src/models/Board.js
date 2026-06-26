@@ -21,4 +21,7 @@ const boardSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Matches the getBoards query: find by owner, sorted by createdAt desc
+boardSchema.index({ owner: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Board', boardSchema);
