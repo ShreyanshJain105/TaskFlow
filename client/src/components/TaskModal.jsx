@@ -1,60 +1,62 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
+import Spinner from './Spinner';
 import toast from 'react-hot-toast';
 
 const PRIORITIES = [
-  { value: 'low', label: 'Low', cls: 'text-emerald-600' },
-  { value: 'med', label: 'Medium', cls: 'text-amber-600' },
-  { value: 'high', label: 'High', cls: 'text-red-600' },
+  { value: 'low', label: 'Low' },
+  { value: 'med', label: 'Medium' },
+  { value: 'high', label: 'High' },
 ];
+
 const STATUSES = [
   { value: 'todo', label: 'To Do' },
   { value: 'in-progress', label: 'In Progress' },
   { value: 'done', label: 'Done' },
 ];
 
-const TaskModal = ({ boardId, task, onClose }) => {
+const TaskModal = ({ boardId, task, defaultStatus, onClose }) => {
   const isEdit = !!task;
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
     title: task?.title || '',
     description: task?.description || '',
-    status: task?.status || 'todo',
+    status: task?.status || defaultStatus || 'todo',
     priority: task?.priority || 'med',
     dueDate: task?.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
     estimatedEffort: task?.estimatedEffort || '',
     aiReasoning: task?.aiReasoning || '',
   });
-  const [errors, setErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Close on Escape
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const validate = () => {
-    const e = {};
-    if (!form.title.trim()) e.title = 'Title is required';
+  const validateForm = () => {
+    const errors = {};
+    if (!form.title.trim()) errors.title = 'Title is required';
     if (!form.dueDate) {
-      e.dueDate = 'Due Date is required';
+      errors.dueDate = 'Due date is required';
     } else {
       const today = new Date().toISOString().split('T')[0];
-      if (form.dueDate < today) e.dueDate = 'Cannot be in the past';
+      if (form.dueDate < today) errors.dueDate = 'Due date cannot be in the past';
     }
-    return e;
+    return errors;
   };
 
   const createMutation = useMutation({
     mutationFn: (data) => api.post(`/boards/${boardId}/tasks`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks', boardId] });
-      toast.success('Task created!');
+      queryClient.invalidateQueries({ queryKey: ['tasks', boardId] });
+      toast.success('Task created');
       onClose();
     },
     onError: (err) => {
@@ -65,8 +67,8 @@ const TaskModal = ({ boardId, task, onClose }) => {
   const updateMutation = useMutation({
     mutationFn: (data) => api.patch(`/tasks/${task._id}`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks', boardId] });
-      toast.success('Task updated!');
+      queryClient.invalidateQueries({ queryKey: ['tasks', boardId] });
+      toast.success('Task updated');
       onClose();
     },
     onError: (err) => {
@@ -77,8 +79,8 @@ const TaskModal = ({ boardId, task, onClose }) => {
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/tasks/${task._id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks', boardId] });
-      qc.invalidateQueries({ queryKey: ['boards'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', boardId] });
+      queryClient.invalidateQueries({ queryKey: ['boards'] });
       toast.success('Task deleted');
       onClose();
     },
@@ -89,7 +91,7 @@ const TaskModal = ({ boardId, task, onClose }) => {
 
   const handleAiEstimate = async () => {
     if (!form.title.trim()) {
-      setErrors({ title: 'Add a title first to get an AI estimate' });
+      setFieldErrors({ title: 'Add a title first to get an AI estimate' });
       return;
     }
     setAiLoading(true);
@@ -101,10 +103,10 @@ const TaskModal = ({ boardId, task, onClose }) => {
       });
       const data = res.data.data;
       setAiResult(data);
-      setForm((f) => ({
-        ...f,
-        estimatedEffort: data.estimatedEffort || f.estimatedEffort,
-        dueDate: data.suggestedDueDate || f.dueDate,
+      setForm((prev) => ({
+        ...prev,
+        estimatedEffort: data.estimatedEffort || prev.estimatedEffort,
+        dueDate: data.suggestedDueDate || prev.dueDate,
         aiReasoning: data.reasoning || '',
       }));
     } catch {
@@ -116,17 +118,22 @@ const TaskModal = ({ boardId, task, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const v = validate();
-    if (Object.keys(v).length) { setErrors(v); return; }
+    const errors = validateForm();
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+
     const payload = {
       ...form,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
     };
+
     if (isEdit) updateMutation.mutate(payload);
     else createMutation.mutate(payload);
   };
 
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div
@@ -138,7 +145,7 @@ const TaskModal = ({ boardId, task, onClose }) => {
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
             {isEdit ? 'Edit Task' : 'New Task'}
           </h2>
-          <button onClick={onClose} className="btn-ghost p-1.5" aria-label="Close modal">
+          <button onClick={onClose} className="btn-ghost p-1.5" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -146,21 +153,19 @@ const TaskModal = ({ boardId, task, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Title */}
           <div>
             <label htmlFor="task-title" className="label">Title *</label>
             <input
               id="task-title"
               type="text"
               placeholder="What needs to be done?"
-              className={`input ${errors.title ? 'border-red-400' : ''}`}
+              className={`input ${fieldErrors.title ? 'border-red-400' : ''}`}
               value={form.title}
-              onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrors({}); }}
+              onChange={(e) => { setForm({ ...form, title: e.target.value }); setFieldErrors({}); }}
             />
-            {errors.title && <p className="error-text">{errors.title}</p>}
+            {fieldErrors.title && <p className="error-text">{fieldErrors.title}</p>}
           </div>
 
-          {/* Description */}
           <div>
             <label htmlFor="task-desc" className="label">Description</label>
             <textarea
@@ -173,7 +178,6 @@ const TaskModal = ({ boardId, task, onClose }) => {
             />
           </div>
 
-          {/* Status + Priority */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="task-status" className="label">Status</label>
@@ -203,7 +207,6 @@ const TaskModal = ({ boardId, task, onClose }) => {
             </div>
           </div>
 
-          {/* Due Date + Effort */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="task-due" className="label">Due Date *</label>
@@ -211,11 +214,11 @@ const TaskModal = ({ boardId, task, onClose }) => {
                 id="task-due"
                 type="date"
                 min={new Date().toISOString().split('T')[0]}
-                className={`input ${errors.dueDate ? 'border-red-400' : ''}`}
+                className={`input ${fieldErrors.dueDate ? 'border-red-400' : ''}`}
                 value={form.dueDate}
-                onChange={(e) => { setForm({ ...form, dueDate: e.target.value }); setErrors({ ...errors, dueDate: undefined }); }}
+                onChange={(e) => { setForm({ ...form, dueDate: e.target.value }); setFieldErrors((prev) => ({ ...prev, dueDate: undefined })); }}
               />
-              {errors.dueDate && <p className="error-text">{errors.dueDate}</p>}
+              {fieldErrors.dueDate && <p className="error-text">{fieldErrors.dueDate}</p>}
             </div>
             <div>
               <label htmlFor="task-effort" className="label">Effort Estimate</label>
@@ -230,13 +233,13 @@ const TaskModal = ({ boardId, task, onClose }) => {
             </div>
           </div>
 
-          {/* AI Estimate */}
+          {/* AI Estimate panel */}
           <div className="rounded-xl border border-brand-200 bg-brand-50 dark:border-brand-900/50 dark:bg-brand-950/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-brand-700 dark:text-brand-300">✨ AI Estimate</p>
+                <p className="text-sm font-medium text-brand-700 dark:text-brand-300">AI Estimate</p>
                 <p className="text-xs text-brand-600/70 dark:text-brand-400/70 mt-0.5">
-                  Get smart effort & due date suggestions
+                  Get smart effort &amp; due date suggestions
                 </p>
               </div>
               <button
@@ -248,10 +251,7 @@ const TaskModal = ({ boardId, task, onClose }) => {
               >
                 {aiLoading ? (
                   <span className="flex items-center gap-1.5">
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
+                    <Spinner className="h-3 w-3" />
                     Thinking…
                   </span>
                 ) : 'Suggest estimate'}
@@ -261,36 +261,51 @@ const TaskModal = ({ boardId, task, onClose }) => {
             {aiResult && (
               <div className="text-xs text-brand-700 dark:text-brand-300 bg-brand-100 dark:bg-brand-900/30 rounded-lg px-3 py-2">
                 {aiResult.fallback ? (
-                  <p className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                    <span>⚠</span>
-                    <span>AI unavailable — using default estimate</span>
-                  </p>
+                  <p className="text-amber-600 dark:text-amber-400">AI unavailable — using default estimate</p>
                 ) : (
-                  <p className="flex items-start gap-1.5">
-                    <span className="mt-0.5">💡</span>
-                    <span>{aiResult.reasoning}</span>
-                  </p>
+                  <p>{aiResult.reasoning}</p>
                 )}
               </div>
             )}
           </div>
 
-          {/* Actions */}
+          {/* Footer actions */}
           <div className="flex items-center justify-between pt-2">
             {isEdit ? (
-              <button
-                type="button"
-                onClick={() => { if (window.confirm('Delete this task?')) deleteMutation.mutate(); }}
-                className="btn-danger text-xs px-3 py-1.5"
-                disabled={deleteMutation.isPending}
-              >
-                Delete task
-              </button>
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Are you sure?</span>
+                  <button
+                    type="button"
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className="btn-danger text-xs px-3 py-1.5"
+                  >
+                    {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="btn-ghost text-xs px-3 py-1.5"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="btn-danger text-xs px-3 py-1.5"
+                >
+                  Delete task
+                </button>
+              )
             ) : <div />}
+
             <div className="flex gap-3">
               <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-              <button type="submit" id="task-save-btn" disabled={saving} className="btn-primary">
-                {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create task'}
+              <button type="submit" id="task-save-btn" disabled={isSaving} className="btn-primary">
+                {isSaving ? 'Saving…' : isEdit ? 'Save changes' : 'Create task'}
               </button>
             </div>
           </div>
