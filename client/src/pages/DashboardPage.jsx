@@ -2,21 +2,70 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import Spinner from '../components/Spinner';
 import { BoardCardSkeleton } from '../components/Skeletons';
 import toast from 'react-hot-toast';
 
-const COLORS = {
-  todo: '#94a3b8',
-  'in-progress': '#6366f1',
-  done: '#22c55e',
+// Sub-components are defined above the main page component so the file reads
+// top-to-bottom without needing to scroll past the default export to understand them.
+
+const Stat = ({ label, value, color }) => (
+  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
+    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
+    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+  </div>
+);
+
+const BoardsBarChart = ({ boards }) => {
+  const data = boards.map((b) => ({ name: b.title.slice(0, 12), tasks: b.taskCount || 0 }));
+  return (
+    <div>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Tasks per board</p>
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+          <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="transparent" />
+          <YAxis tick={{ fontSize: 11 }} stroke="transparent" allowDecimals={false} />
+          <Tooltip
+            contentStyle={{
+              // These match the dark card style. Light mode users will still see a dark
+              // tooltip — acceptable for now, a future pass could use CSS vars here.
+              background: 'rgb(15 23 42)',
+              border: '1px solid rgb(30 41 59)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#e2e8f0',
+            }}
+          />
+          <Bar dataKey="tasks" fill="#6366f1" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
 };
+
+const EmptyState = ({ onCreate }) => (
+  <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+    <div className="w-20 h-20 rounded-2xl bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center mb-5">
+      <svg className="w-10 h-10 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+    </div>
+    <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-2">No boards yet</h2>
+    <p className="text-slate-400 dark:text-slate-500 mb-6 max-w-xs">
+      Create your first board to start organizing tasks and tracking progress.
+    </p>
+    <button id="empty-state-create-btn" onClick={onCreate} className="btn-primary">
+      Create your first board
+    </button>
+  </div>
+);
 
 const BoardCard = ({ board, onEdit, onDelete, onClick }) => (
   <div
@@ -71,32 +120,32 @@ const BoardCard = ({ board, onEdit, onDelete, onClick }) => (
   </div>
 );
 
-const BoardModal = ({ board, onClose, onSaved }) => {
+const BoardFormModal = ({ board, onClose }) => {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState({ title: board?.title || '', description: board?.description || '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const qc = useQueryClient();
+  const [titleError, setTitleError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.title.trim()) { setError('Title is required'); return; }
-    setLoading(true);
-    try {
-      if (board) {
-        await api.patch(`/boards/${board._id}`, form);
-        toast.success('Board updated!');
-      } else {
-        await api.post('/boards', form);
-        toast.success('Board created!');
-      }
-      qc.invalidateQueries({ queryKey: ['boards'] });
-      onSaved?.();
+  const saveMutation = useMutation({
+    mutationFn: (data) =>
+      board ? api.patch(`/boards/${board._id}`, data) : api.post('/boards', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boards'] });
+      toast.success(board ? 'Board updated' : 'Board created');
       onClose();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to save board');
-    } finally {
-      setLoading(false);
+    },
+    onError: (err) => {
+      const message = err.response?.data?.error?.message || 'Failed to save board';
+      setTitleError(message);
+    },
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) {
+      setTitleError('Title is required');
+      return;
     }
+    saveMutation.mutate(form);
   };
 
   return (
@@ -115,12 +164,12 @@ const BoardModal = ({ board, onClose, onSaved }) => {
               id="board-title"
               type="text"
               placeholder="e.g. Product Roadmap"
-              className={`input ${error ? 'border-red-400' : ''}`}
+              className={`input ${titleError ? 'border-red-400' : ''}`}
               value={form.title}
-              onChange={(e) => { setForm({ ...form, title: e.target.value }); setError(''); }}
+              onChange={(e) => { setForm({ ...form, title: e.target.value }); setTitleError(''); }}
               autoFocus
             />
-            {error && <p className="error-text">{error}</p>}
+            {titleError && <p className="error-text">{titleError}</p>}
           </div>
           <div>
             <label htmlFor="board-desc" className="label">Description</label>
@@ -135,8 +184,18 @@ const BoardModal = ({ board, onClose, onSaved }) => {
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" id="board-save-btn" disabled={loading} className="btn-primary flex-1">
-              {loading ? 'Saving…' : board ? 'Save changes' : 'Create board'}
+            <button
+              type="submit"
+              id="board-save-btn"
+              disabled={saveMutation.isPending}
+              className="btn-primary flex-1"
+            >
+              {saveMutation.isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Spinner />
+                  Saving…
+                </span>
+              ) : board ? 'Save changes' : 'Create board'}
             </button>
           </div>
         </form>
@@ -147,10 +206,9 @@ const BoardModal = ({ board, onClose, onSaved }) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
   const [boardModal, setBoardModal] = useState(null); // null | 'create' | board object
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const { data: boardsData, isLoading } = useQuery({
     queryKey: ['boards'],
@@ -159,32 +217,25 @@ const DashboardPage = () => {
   });
 
   const boards = boardsData || [];
+  const totalTasks = boards.reduce((sum, b) => sum + (b.taskCount || 0), 0);
 
-  // Compute analytics across all boards (using board.taskCount is rough; 
-  // for real analytics fetch tasks, but we'll use a lightweight approach)
-  const totalTasks = boards.reduce((s, b) => s + (b.taskCount || 0), 0);
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/boards/${deleteTarget._id}`);
+  const deleteMutation = useMutation({
+    mutationFn: (boardId) => api.delete(`/boards/${boardId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boards'] });
       toast.success('Board deleted');
-      qc.invalidateQueries({ queryKey: ['boards'] });
       setDeleteTarget(null);
-    } catch {
+    },
+    onError: () => {
       toast.error('Failed to delete board');
-    } finally {
-      setDeleting(false);
-    }
-  };
+    },
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <Navbar />
 
       <main className="flex-grow w-full mx-auto max-w-7xl px-4 sm:px-6 py-8">
-        {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">My Boards</h1>
@@ -206,13 +257,12 @@ const DashboardPage = () => {
           </button>
         </div>
 
-        {/* Analytics Panel */}
         {boards.length > 0 && (
           <div className="card p-6 mb-8 animate-fade-in">
             <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
               Overview
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
               <Stat label="Total Boards" value={boards.length} color="text-brand-600" />
               <Stat label="Total Tasks" value={totalTasks} color="text-slate-700 dark:text-slate-300" />
             </div>
@@ -220,7 +270,6 @@ const DashboardPage = () => {
           </div>
         )}
 
-        {/* Board Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1, 2, 3].map((i) => <BoardCardSkeleton key={i} />)}
@@ -238,7 +287,6 @@ const DashboardPage = () => {
                 onDelete={(b) => setDeleteTarget(b)}
               />
             ))}
-            {/* + New Board card */}
             <button
               onClick={() => setBoardModal('create')}
               className="card p-5 border-dashed hover:border-brand-400 hover:bg-brand-50/50 dark:hover:bg-brand-950/20 transition-all duration-200 flex flex-col items-center justify-center gap-2 min-h-[120px] group"
@@ -256,9 +304,8 @@ const DashboardPage = () => {
         )}
       </main>
 
-      {/* Modals */}
       {boardModal && (
-        <BoardModal
+        <BoardFormModal
           board={boardModal === 'create' ? null : boardModal}
           onClose={() => setBoardModal(null)}
         />
@@ -269,81 +316,34 @@ const DashboardPage = () => {
           <div className="card w-full max-w-sm shadow-2xl animate-slide-up p-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Delete Board</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-              Are you sure you want to delete <strong className="text-slate-700 dark:text-slate-200">"{deleteTarget.title}"</strong>?
-              This will also delete all its tasks. This action cannot be undone.
+              Are you sure you want to delete{' '}
+              <strong className="text-slate-700 dark:text-slate-200">"{deleteTarget.title}"</strong>?
+              {' '}All tasks will be permanently removed.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
+                disabled={deleteMutation.isPending}
                 className="btn-secondary flex-1"
               >
                 Cancel
               </button>
               <button
                 id="confirm-delete-board"
-                onClick={handleDelete}
-                disabled={deleting}
+                onClick={() => deleteMutation.mutate(deleteTarget._id)}
+                disabled={deleteMutation.isPending}
                 className="btn-danger flex-1"
               >
-                {deleting ? 'Deleting…' : 'Delete'}
+                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
         </div>
       )}
-      
+
       <Footer />
     </div>
   );
 };
-
-const Stat = ({ label, value, color }) => (
-  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
-    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-    <p className={`text-2xl font-bold ${color}`}>{value}</p>
-  </div>
-);
-
-const BoardsBarChart = ({ boards }) => {
-  const data = boards.map((b) => ({ name: b.title.slice(0, 12), tasks: b.taskCount || 0 }));
-  return (
-    <div>
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Tasks per board</p>
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="transparent" />
-          <YAxis tick={{ fontSize: 11 }} stroke="transparent" allowDecimals={false} />
-          <Tooltip
-            contentStyle={{
-              background: 'rgb(15 23 42)',
-              border: '1px solid rgb(30 41 59)',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: '#e2e8f0',
-            }}
-          />
-          <Bar dataKey="tasks" fill="#6366f1" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
-const EmptyState = ({ onCreate }) => (
-  <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-    <div className="w-20 h-20 rounded-2xl bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center text-4xl mb-5">
-      📋
-    </div>
-    <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-2">No boards yet</h2>
-    <p className="text-slate-400 dark:text-slate-500 mb-6 max-w-xs">
-      Create your first board to start organizing tasks and tracking progress.
-    </p>
-    <button id="empty-state-create-btn" onClick={onCreate} className="btn-primary">
-      Create your first board
-    </button>
-  </div>
-);
 
 export default DashboardPage;
