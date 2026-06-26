@@ -16,6 +16,8 @@ import NotFoundPage from './pages/NotFoundPage';
 
 import './index.css';
 
+// Default staleTime of 30s means cached data is considered fresh for 30 seconds.
+// Individual queries can override this (e.g. tasks uses 5s for more timely updates).
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

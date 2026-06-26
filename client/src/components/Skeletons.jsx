@@ -1,4 +1,9 @@
-// Skeleton shapes for loading states
+/**
+ * Skeleton placeholder components for loading states.
+ * These mirror the shape of their real counterparts so the layout doesn't
+ * shift when data arrives.
+ */
+
 export const BoardCardSkeleton = () => (
   <div className="card p-5 space-y-3">
     <div className="skeleton h-5 w-3/4 rounded" />

@@ -8,8 +8,11 @@ const NotFoundPage = () => (
       <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-sm">
         The page you're looking for doesn't exist or has been moved.
       </p>
-      <Link to="/" className="btn-primary inline-flex">
-        ← Back to Dashboard
+      <Link to="/" className="btn-primary inline-flex items-center gap-2">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Dashboard
       </Link>
     </div>
   </div>

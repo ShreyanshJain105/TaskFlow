@@ -5,7 +5,6 @@ const api = axios.create({
   timeout: 15000,
 });
 
-// Attach JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('taskflow_token');
   if (token) {
@@ -14,10 +13,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Redirect to /login on 401
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // A 401 here means the token is expired or was revoked.
+    // Hard-redirect rather than trying to recover so stale React state doesn't persist.
     if (err.response?.status === 401) {
       localStorage.removeItem('taskflow_token');
       window.location.href = '/login';

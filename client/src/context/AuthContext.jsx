@@ -29,6 +29,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('taskflow_user');
   }, []);
 
+  // Fetches a fresh user object from the server — useful after a profile update
+  // to keep local state in sync without a full re-login.
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.get('/auth/me');
