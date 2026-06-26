@@ -3,43 +3,48 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import ThemeToggle from '../components/ThemeToggle';
+import Spinner from '../components/Spinner';
 import toast from 'react-hot-toast';
 
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/';
+  const redirectTo = location.state?.from?.pathname || '/';
 
   const [form, setForm] = useState({ email: '', password: '' });
-  const [errors, setErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const validate = () => {
-    const e = {};
-    if (!form.email) e.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email address';
-    if (!form.password) e.password = 'Password is required';
-    return e;
+  const validateForm = () => {
+    const errors = {};
+    if (!form.email) errors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) errors.email = 'Invalid email address';
+    if (!form.password) errors.password = 'Password is required';
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const v = validate();
-    if (Object.keys(v).length) { setErrors(v); return; }
-    setErrors({});
+    const errors = validateForm();
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
     try {
       const res = await api.post('/auth/login', form);
       const { token, user } = res.data.data;
       login(user, token);
       toast.success(`Welcome back, ${user.name}!`);
-      navigate(from, { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.error?.message || 'Login failed';
-      const fields = err.response?.data?.error?.fields;
-      if (fields) setErrors(fields);
-      else toast.error(msg);
+      const serverFields = err.response?.data?.error?.fields;
+      const message = err.response?.data?.error?.message || 'Login failed';
+      if (serverFields) setFieldErrors(serverFields);
+      else toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -60,6 +65,7 @@ const LoginPage = () => {
               </svg>
             </div>
           </div>
+
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in to your TaskFlow account</p>
@@ -73,11 +79,11 @@ const LoginPage = () => {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                className={`input ${errors.email ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
+                className={`input ${fieldErrors.email ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
-              {errors.email && <p className="error-text">{errors.email}</p>}
+              {fieldErrors.email && <p className="error-text">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -87,11 +93,11 @@ const LoginPage = () => {
                 type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={`input ${errors.password ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
+                className={`input ${fieldErrors.password ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
-              {errors.password && <p className="error-text">{errors.password}</p>}
+              {fieldErrors.password && <p className="error-text">{fieldErrors.password}</p>}
             </div>
 
             <button
@@ -102,10 +108,7 @@ const LoginPage = () => {
             >
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                  <Spinner />
                   Signing in…
                 </span>
               ) : 'Sign in'}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import ThemeToggle from '../components/ThemeToggle';
+import Spinner from '../components/Spinner';
 import toast from 'react-hot-toast';
 
 const RegisterPage = () => {
@@ -10,23 +11,27 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({ name: '', email: '', password: '' });
-  const [errors, setErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const validate = () => {
-    const e = {};
-    if (!form.name || form.name.trim().length < 2) e.name = 'Name must be at least 2 characters';
-    if (!form.email) e.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email address';
-    if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
-    return e;
+  const validateForm = () => {
+    const errors = {};
+    if (!form.name || form.name.trim().length < 2) errors.name = 'Name must be at least 2 characters';
+    if (!form.email) errors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) errors.email = 'Invalid email address';
+    if (!form.password || form.password.length < 6) errors.password = 'Password must be at least 6 characters';
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const v = validate();
-    if (Object.keys(v).length) { setErrors(v); return; }
-    setErrors({});
+    const errors = validateForm();
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
     try {
       const res = await api.post('/auth/register', form);
@@ -35,10 +40,10 @@ const RegisterPage = () => {
       toast.success(`Account created! Welcome, ${user.name}!`);
       navigate('/');
     } catch (err) {
-      const fields = err.response?.data?.error?.fields;
-      const msg = err.response?.data?.error?.message || 'Registration failed';
-      if (fields) setErrors(fields);
-      else toast.error(msg);
+      const serverFields = err.response?.data?.error?.fields;
+      const message = err.response?.data?.error?.message || 'Registration failed';
+      if (serverFields) setFieldErrors(serverFields);
+      else toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -59,6 +64,7 @@ const RegisterPage = () => {
               </svg>
             </div>
           </div>
+
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Create your account</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Start managing tasks in seconds</p>
@@ -72,11 +78,11 @@ const RegisterPage = () => {
                 type="text"
                 autoComplete="name"
                 placeholder="Jane Smith"
-                className={`input ${errors.name ? 'border-red-400' : ''}`}
+                className={`input ${fieldErrors.name ? 'border-red-400' : ''}`}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
-              {errors.name && <p className="error-text">{errors.name}</p>}
+              {fieldErrors.name && <p className="error-text">{fieldErrors.name}</p>}
             </div>
 
             <div>
@@ -86,11 +92,11 @@ const RegisterPage = () => {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                className={`input ${errors.email ? 'border-red-400' : ''}`}
+                className={`input ${fieldErrors.email ? 'border-red-400' : ''}`}
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
-              {errors.email && <p className="error-text">{errors.email}</p>}
+              {fieldErrors.email && <p className="error-text">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -100,11 +106,11 @@ const RegisterPage = () => {
                 type="password"
                 autoComplete="new-password"
                 placeholder="At least 6 characters"
-                className={`input ${errors.password ? 'border-red-400' : ''}`}
+                className={`input ${fieldErrors.password ? 'border-red-400' : ''}`}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
-              {errors.password && <p className="error-text">{errors.password}</p>}
+              {fieldErrors.password && <p className="error-text">{fieldErrors.password}</p>}
             </div>
 
             <button
@@ -115,10 +121,7 @@ const RegisterPage = () => {
             >
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                  <Spinner />
                   Creating account…
                 </span>
               ) : 'Create account'}
